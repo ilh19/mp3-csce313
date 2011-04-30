@@ -17,7 +17,7 @@
 
 using namespace std;  
 
-#define PORT "3500"				// the port users will be connecting to server
+#define PORT "15919"				// the port users will be connecting to server
 
 #define BACKLOG 10				// how many pending connections queue will hold
 
@@ -44,12 +44,20 @@ int server_fd, client_fd;       // listen on server_fd, new connection on client
 
 
 /*print_room: for debugging purposes*/
-
 void print_room(ChatRoom* new_chat){
 	printf("name: %s \n",new_chat->name);
 	//printf("thread_id: %d \n",new_chat->thread_id);
 	printf("num_members: %d \n",new_chat->num_members);	
 	printf("port_number: %d \n", new_chat->port_number);
+}
+
+/*print_list: for debugging purposes*/
+void print_list(){
+	printf("Printing chat_rooms: \n");
+	for(int i = 0; i < chat_rooms.size(); i++){
+		printf("Chat room %d: \n", i);
+		print_room(chat_rooms[i]);
+	}
 }
 
 /*get_in_addr: get sockaddr, IPv4 or IPv6*/
@@ -66,21 +74,26 @@ int check_request(char* request){
 	//printf("request: %s", request);
 	
 	if (strncmp("CREATE", request, 6) == 0){				// CREATE REQUEST
-		room_name =  &(request[7]);								// skips white space copies the name of the room
+		char* name =  &(request[7]);							// skips white space copies the name of the room
+		room_name = name;										// copies the address of the name of the room
 		printf("CREATE REQUEST\n");
+		printf("Room name: %s\n", room_name);
 		return 1;
 	}
 
 	else {
 		if (strncmp("JOIN", request, 4) == 0){				// JOIN REQUEST
-			room_name = &(request[5]);								// copies the name of the room
+			char* name = &(request[5]);
+			room_name = name;									// copies the address of the name of the room
 			printf("JOIN REQUEST\n");
+			printf("Room name: %s\n", room_name);
 			return 2;
 		}
 
 		else{	
 			if(strncmp("DELETE", request, 6) == 0){			// DELETE REQUEST
-				room_name = &(request[7]);							// copies the name of the room
+				char* name = &(request[7]);
+				room_name = name;							   // copies the address of the name of the room
 				printf("DELETE REQUEST\n");
 				return 3;
 			}
@@ -106,13 +119,17 @@ int generate_port_number(){
 			ChatRoom* room = chat_rooms[i];
 			printf("PORT NUMBER: %d", port_num);
 			// port number is already in use by a chat room or the server itself
-			if((room->port_number != port_num) && (port_num != atoi(PORT)) && (port_num > 3000) && (port_num < 65500))	// CHECK!!!!!!!!!!!!!!!
+			if((room->port_number == port_num) || (port_num == atoi(PORT))){
 				used = 1;
+				break;	
+			}
 		}
-		// empty vector of end of the list
-		if((port_num > 3000) && (port_num < 65500)){
+		// empty vector or end of the list
+		if((port_num > 3000) && (port_num < 65500) && (used == 0)){
 			used = 1;  
 		}
+		else
+			used = 0;
 	}
 	printf("PORT NUMBER: %d", port_num);
 	return port_num;
@@ -144,7 +161,7 @@ void* handle_chat_room(void* room){
 	sprintf(port, "%d", chat->port_number);
 
 	if (send(client_fd, "Chat room was created succesfully" , strlen("Chat room was created succesfully"), 0) == -1)      // send message to client
-		perror("send");
+		perror("send slave");
 
 	close(client_fd);								// close the client_fd
 	
@@ -165,32 +182,32 @@ void* handle_chat_room(void* room){
     // loop through all the results and bind to the first we can
     for(p = servinfo; p != NULL; p = p->ai_next) {
         if ((chat->chat_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-            perror("server: socket");
+            perror("slave server: socket");
             continue;
         }
 
         if (setsockopt(chat->chat_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {// allows reusabilitity of local addresses
-            perror("setsockopt");
+            perror("slave setsockopt");
             exit(1);                           //////////////////////FIXXXXXXXX
         }
 
         if (bind(chat->chat_fd, p->ai_addr, p->ai_addrlen) == -1) {			// binds socket to a local socket address
             close(chat->chat_fd);
-            perror("server: bind");
+            perror("slave server: bind");
             continue;
 		}
         break;
 	}
 
     if (p == NULL)  {
-        fprintf(stderr, "server: failed to bind\n");
+        fprintf(stderr, "slave server: failed to bind\n");
         exit(1);                           //////////////////////FIXXXXXXXX
     }
 
     freeaddrinfo(servinfo);						// done with this structure
 	
 	if (listen(chat->chat_fd, BACKLOG) == -1) {		// new socket can be accepted, chat_fd listens for connections
-        perror("listen");
+        perror("slave listen");
 		close(chat->chat_fd);
         exit(1);                           //////////////////////FIXXXXXXXX
     }
@@ -205,7 +222,7 @@ void* handle_chat_room(void* room){
 		chat->clients_fd = chat->master_fd;
 
 		if(select(chat->fdmax+1, &(chat->clients_fd), NULL, NULL, NULL) == -1){
-			perror("select");
+			perror("slave select");
 			exit(4);                 ////////////////////
 		}
 
@@ -216,7 +233,7 @@ void* handle_chat_room(void* room){
 
 				member_fd = accept(chat->chat_fd, (struct sockaddr *)&client_addr, &sin_size);   // gets new socket with a new incoming connection
 				if (member_fd == -1) {
-					perror("accept");
+					perror("slave accept");
 				}
 				else{
 					FD_SET(member_fd,  &(chat->master_fd));    // adds to master set
@@ -241,7 +258,7 @@ void* handle_chat_room(void* room){
 						printf("Chat room %s: socket %d disconnected\n", chat->name, i);
 					}
 					else{
-						perror("recv");
+						perror("slave recv");
 					}
 					close(i);					// closes the socket
 					FD_CLR(i, &(chat->master_fd)); // removes from master_fd
@@ -251,10 +268,10 @@ void* handle_chat_room(void* room){
 					for(int j = 0; j <= chat->fdmax; j++){
 
 						if(FD_ISSET(j, &(chat->master_fd))){		// send to everyone in the chat room except the  chat_fd and the sender
-							if(j != (chat->chat_fd) && j != i){      /////////////FIX!!!!!!!!!!
+							if(j != (chat->chat_fd) && j != i){    
 
 								if(send(j, msg, numbytes,0) == -1){
-									perror("send");
+									perror("slave send");
 								}
 							}
 						}
@@ -269,9 +286,13 @@ void* handle_chat_room(void* room){
 /*create_room: creates a chatroom if it does not exist already*/
 int create_room(){
 	printf("Create Room\n");
-	for(int i = 0; i < chat_rooms.size(); i++){				// checks if there is another chatroom with the same name
+	printf("Chat Room name: %s \n", room_name);
+	print_list();
+	for(int i = 0; i < chat_rooms.size(); i++){	
+		printf("Chat Room compare: %s \n", (chat_rooms[i]->name));// checks if there is another chatroom with the same name
 		if(strcmp(chat_rooms[i]->name, room_name) == 0){
-			return 0;
+			return 0; 
+			printf("could not create room\n");
 			//break;
 		}
 	}
@@ -285,14 +306,19 @@ int create_room(){
 	// create a new room struct
 	ChatRoom* new_chat = (ChatRoom*)malloc(sizeof(ChatRoom));
 	
-	new_chat->name = room_name;
+	char name[100]; 
+	memcpy (name,room_name,strlen(room_name)+1);
+	printf("------->>>>>IN create room: room name %s\n", name);
+	new_chat->name = name;
+	printf("------->>>>>IN create room from struct: room name %s\n", new_chat->name);
 	new_chat->num_members = 0; 
 	new_chat->port_number = generate_port_number();      // obtains a random port number
 	
 	chat_rooms.push_back(new_chat);  
 
-	//print_room(new_chat);
-	
+	printf("~~~~~~~~~~~~~~~After room is inserted to list: \n");
+	print_list();
+		
 	printf("Creating a pthread\n");	
 	//creates a thread to handle this room
 	if (pthread_create(&(new_chat->thread_id), NULL, handle_chat_room, (void *)new_chat)){ //if not 0, error ocurred
@@ -303,6 +329,8 @@ int create_room(){
 
 /*join_room: adds client to a chat room if it exists*/
 int join_room(){
+	printf("In JOIN: ");
+	print_list();
 	for(int i = 0; i < chat_rooms.size(); i++){				// checks if there is another chatroom with the same name
 		ChatRoom* room = chat_rooms[i];
 		
@@ -348,7 +376,7 @@ int delete_room(){
 				}
 			}
 			close(room->chat_fd);							// closes the chat_fd
-			pthread_kill(room->thread_id, SIGTERM);		// terminates the thread   USE MASKING!!!!!!!!!!!
+			pthread_kill(room->thread_id, SIGTERM);			// terminates the thread sending a signal to it
 			free(room);										// frees allocated memory for chat room
 			chat_rooms.erase(i);							// deletes its pointer
 			return 1;
@@ -446,11 +474,11 @@ int main(void) {
 		switch(type_request){
 		case 1:										// CREATE REQUEST
 			printf("CREATE REQUEST\n");
-			if(create_room()){						// room was created succesfully
-				if (send(client_fd, room_name, strlen(room_name), 0) == -1)
-					perror("send");
-			}
-			else{									// room was not created
+			if(!create_room()){						// room was created succesfully
+				//if (send(client_fd, room_name, strlen(room_name), 0) == -1)
+				//	perror("send");
+			//}
+			//else{									// room was not created because the name exist already
 				char msg_out[27] = "Could not create chat room";
 				if (send(client_fd, msg_out, strlen(msg_out), 0) == -1)
 					perror("send");                 
@@ -460,11 +488,11 @@ int main(void) {
 
 		case 2:										// JOIN REQUEST
 			printf("JOIN REQUEST\n");
-			if(join_room()){
-				if(send(client_fd, room_name, strlen(room_name), 0) == -1)
-					perror("send");
-			}
-			else{
+			if(!join_room()){
+				//if(send(client_fd, room_name, strlen(room_name), 0) == -1)
+				//	perror("send");
+			//}
+			//else{
 				char msg_out[25] = "Could not join chat room";
 				if (send(client_fd, msg_out , strlen(msg_out), 0) == -1)
 					perror("send");
@@ -474,11 +502,11 @@ int main(void) {
 
 		case 3:										// DELETE
 			printf("DELETE REQUEST\n");
-			if(delete_room()){
-				if (send(client_fd, room_name, strlen(room_name), 0) == -1)
-					perror("send");
-			}
-			else{
+			if(!delete_room()){
+				//if (send(client_fd, room_name, strlen(room_name), 0) == -1)
+				//	perror("send");
+			//}
+			//else{
 				char msg_out[27] = "Could not delete chat room";
 				if (send(client_fd, msg_out, strlen(msg_out), 0) == -1)
 					perror("send");
