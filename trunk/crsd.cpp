@@ -117,7 +117,7 @@ int generate_port_number(){
 		
 		for(int i = 0; i < chat_rooms.size(); i++){				// checks if there is another chatroom with the same name
 			ChatRoom* room = chat_rooms[i];
-			printf("PORT NUMBER: %d", port_num);
+			//printf("PORT NUMBER: %d", port_num);
 			// port number is already in use by a chat room or the server itself
 			if((room->port_number == port_num) || (port_num == atoi(PORT))){
 				used = 1;
@@ -159,6 +159,7 @@ void* handle_chat_room(void* room){
 	
 	char port[10];									// buffer for port number
 	sprintf(port, "%d", chat->port_number);
+	printf("PORT TO CONENCT TO: %s", port);
 
 	if (send(client_fd, "Chat room was created succesfully" , strlen("Chat room was created succesfully"), 0) == -1)      // send message to client
 		perror("send slave");
@@ -217,7 +218,7 @@ void* handle_chat_room(void* room){
 	chat->fdmax = chat->chat_fd;					// keeps track of the biggest fd
 
 	//keep track of the biggest fd
-
+	printf(">>>>>>>>>LISTENING ANG MONITORING  \n");
     while(1) {							// main accept() loop
 		chat->clients_fd = chat->master_fd;
 
@@ -286,10 +287,10 @@ void* handle_chat_room(void* room){
 /*create_room: creates a chatroom if it does not exist already*/
 int create_room(){
 	printf("Create Room\n");
-	printf("Chat Room name: %s \n", room_name);
+	//printf("Chat Room name: %s \n", room_name);
 	print_list();
 	for(int i = 0; i < chat_rooms.size(); i++){	
-		printf("Chat Room compare: %s \n", (chat_rooms[i]->name));// checks if there is another chatroom with the same name
+	//	printf("Chat Room compare: %s \n", (chat_rooms[i]->name));// checks if there is another chatroom with the same name
 		if(strcmp(chat_rooms[i]->name, room_name) == 0){
 			return 0; 
 			printf("could not create room\n");
@@ -310,7 +311,7 @@ int create_room(){
 	memcpy (new_chat->name,room_name,strlen(room_name)+1);
 	//printf("------->>>>>IN create room: room name %s\n", name);
 	//new_chat->name = name;
-	printf("------->>>>>IN create room from struct: room name %s\n", new_chat->name);
+	//printf("------->>>>>IN create room from struct: room name %s\n", new_chat->name);
 	new_chat->num_members = 0; 
 	new_chat->port_number = generate_port_number();      // obtains a random port number
 	
@@ -329,27 +330,25 @@ int create_room(){
 
 /*join_room: adds client to a chat room if it exists*/
 int join_room(){
-	printf("In JOIN: ");
+	printf("->>>>>>>>>>>In JOIN: ");
 	print_list();
 	for(int i = 0; i < chat_rooms.size(); i++){				// checks if there is another chatroom with the same name
 		ChatRoom* room = chat_rooms[i];
 		
 		if(strcmp(room->name, room_name) == 0){				// room was found
-			char port[10];									// buffer for port number
-			sprintf(port, "%d", room->port_number);
-			//printf("port number %s", port);
-			//printf("port number %s", strlen(port));
-
-			char members[10];								// buffer for number of members
-			sprintf(members, "%d", room->num_members);
-			//printf("members number %s", members);
+			char port_members[20];									// buffer for port number
+			sprintf(port_members, "%d %d", room->port_number,room->num_members);
+			
+			//char members[10];								// buffer for number of members
+			//sprintf(members, "%d", room->num_members);
+			printf("PORT AND MEMBERS TOGETHER %s", port_members);
 			//printf("members %s", strlen(members));
 
-			if (send(client_fd, port , strlen(port), 0) == -1)      // sends the port number to the client
+			if (send(client_fd, port_members , strlen(port_members), 0) == -1)      // sends the port number to the client
 				perror("send");
 
-			if (send(client_fd, members , strlen(members), 0) == -1)      // sends the port number to the client
-				perror("send");
+		//	if (send(client_fd, members , strlen(members), 0) == -1)      // sends the port number to the client
+		//		perror("send");
 			return 1;
 			break;
 		}
