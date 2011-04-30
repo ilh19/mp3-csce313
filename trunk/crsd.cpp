@@ -48,7 +48,7 @@ void print_room(ChatRoom* new_chat){
 	printf("name: %s \n",new_chat->name);
 	//printf("thread_id: %d \n",new_chat->thread_id);
 	printf("num_members: %d \n",new_chat->num_members);	
-	printf("port_number: %d \n", new_chat->port_number);
+	printf("port_number: %d \n\n", new_chat->port_number);
 }
 
 /*print_list: for debugging purposes*/
@@ -337,9 +337,13 @@ int join_room(){
 		if(strcmp(room->name, room_name) == 0){				// room was found
 			char port[10];									// buffer for port number
 			sprintf(port, "%d", room->port_number);
+			//printf("port number %s", port);
+			//printf("port number %s", strlen(port));
 
 			char members[10];								// buffer for number of members
-			sprintf(port, "%d", room->num_members);
+			sprintf(members, "%d", room->num_members);
+			//printf("members number %s", members);
+			//printf("members %s", strlen(members));
 
 			if (send(client_fd, port , strlen(port), 0) == -1)      // sends the port number to the client
 				perror("send");
@@ -493,7 +497,7 @@ int main(void) {
 				//	perror("send");
 			//}
 			//else{
-				char msg_out[25] = "Could not join chat room";
+				char msg_out[25] = "Chat room does not exist";
 				if (send(client_fd, msg_out , strlen(msg_out), 0) == -1)
 					perror("send");
 			}
