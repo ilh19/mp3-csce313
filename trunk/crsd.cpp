@@ -26,7 +26,7 @@ using namespace std;
 
 /* Struct holding data of each chat room */
 typedef struct ChatRoom{
-	char* name;
+	char name[100];
 	pthread_t thread_id;
 	fd_set master_fd;				// master file descriptor list
 	fd_set clients_fd;				// add fd when a client joins, delete fd when a client terminate connection
@@ -306,10 +306,10 @@ int create_room(){
 	// create a new room struct
 	ChatRoom* new_chat = (ChatRoom*)malloc(sizeof(ChatRoom));
 	
-	char name[100]; 
-	memcpy (name,room_name,strlen(room_name)+1);
-	printf("------->>>>>IN create room: room name %s\n", name);
-	new_chat->name = name;
+	//char name[100]; 
+	memcpy (new_chat->name,room_name,strlen(room_name)+1);
+	//printf("------->>>>>IN create room: room name %s\n", name);
+	//new_chat->name = name;
 	printf("------->>>>>IN create room from struct: room name %s\n", new_chat->name);
 	new_chat->num_members = 0; 
 	new_chat->port_number = generate_port_number();      // obtains a random port number
