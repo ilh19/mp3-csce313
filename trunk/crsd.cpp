@@ -330,7 +330,7 @@ int join_room(){
 /*delete_room: deletes a chat room if it exists*/
 int delete_room(){
 	vector<ChatRoom*>::iterator i;
-	char out_message[100];
+	
 	for(i = chat_rooms.begin(); i < chat_rooms.end(); i++){				// checks if there is another chatroom with the same name
 		ChatRoom* room = (*i);
 		if(strcmp(room->name, room_name) == 0){     // room was found
@@ -339,7 +339,7 @@ int delete_room(){
 				fd_set* temp_set = &(room->master_fd);
 				if(FD_ISSET(j, temp_set)){		// send to everyone in the chat room except chat_fd
 					if(j != room->chat_fd){
-						out_message = "Chat room is being deleted, shutting down connection";
+						char out_msg[53] = "Chat room is being deleted, shutting down connection";
 						if(send(j, out_msg, strlen(out_msg),0) == -1){
 							perror("send");
 						}
@@ -348,7 +348,7 @@ int delete_room(){
 				}
 			}
 			close(room->chat_fd);							// closes the chat_fd
-			pthread_kill(room->thread_id, SIG_TERM);		// terminates the thread   USE MASKING!!!!!!!!!!!
+			pthread_kill(room->thread_id, SIGTERM);		// terminates the thread   USE MASKING!!!!!!!!!!!
 			free(room);										// frees allocated memory for chat room
 			chat_rooms.erase(i);							// deletes its pointer
 			return 1;
@@ -362,7 +362,7 @@ int delete_room(){
 
 int main(void) {
 	struct addrinfo hints, *servinfo, *p;  
-	int yes=1;
+	int yes = 1;
 	int rv;
     socklen_t sin_size;
 	struct sockaddr_storage client_addr;			// connector's address information
@@ -370,8 +370,7 @@ int main(void) {
 
 	int numbytes;									// number of bytes obtained from client's request
 	char request[MAX_REQUEST_SIZE];					// buffer for the request sent by the client
-	char msg_out[100];
-	
+		
 	chat_rooms = vector<ChatRoom*>();				// initializes the chatroom list
 
 	memset(&hints, 0, sizeof hints);
@@ -436,7 +435,7 @@ int main(void) {
 			perror("recv");
 			exit(1);
 		}
-		request[numbytes] = '\0';			// add termination char 
+		request[numbytes] = '\0';				// add termination char 
 		
 		printf("Request: %s\n", request);
 		
@@ -452,9 +451,9 @@ int main(void) {
 					perror("send");
 			}
 			else{									// room was not created
-				msg_out = "Could not create chat room";
+				char msg_out[27] = "Could not create chat room";
 				if (send(client_fd, msg_out, strlen(msg_out), 0) == -1)
-					perror("send");                 // CLOSE FD???!!!!!!!!!!!!!!!!!!!!~~~~~~~~~
+					perror("send");                 
 			}
 			close(client_fd);
 			break;
@@ -466,7 +465,7 @@ int main(void) {
 					perror("send");
 			}
 			else{
-				msg_out = "Could not join chat room";
+				char msg_out[25] = "Could not join chat room";
 				if (send(client_fd, msg_out , strlen(msg_out), 0) == -1)
 					perror("send");
 			}
@@ -480,7 +479,7 @@ int main(void) {
 					perror("send");
 			}
 			else{
-				msg_out = "Could not delete chat room";
+				char msg_out[27] = "Could not delete chat room";
 				if (send(client_fd, msg_out, strlen(msg_out), 0) == -1)
 					perror("send");
 			}
@@ -488,7 +487,7 @@ int main(void) {
 			break;
 
 		case 4: 									// INVALID REQUEST
-			msg_out = "Invalid Request. Connection closed.";
+			char msg_out[36] = "Invalid Request. Connection closed.";
 			if (send(client_fd, msg_out, strlen(msg_out), 0) == -1){
 				perror("send");
 				close(client_fd);
