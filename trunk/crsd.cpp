@@ -140,23 +140,23 @@ int generate_port_number(){
                     reads and writes messages from the users/clients in the chatroom*/
 void* handle_chat_room(void* room){
 	printf("Handle Chat Room\n");
-	
+
 	struct addrinfo hints, *servinfo, *p;  
 	int yes=1;
 	int rv;
-    socklen_t sin_size;
+	socklen_t sin_size;
 	struct sockaddr_storage client_addr;			// connector's address information
 	char s[INET6_ADDRSTRLEN];
 
 	//int fdmax;										// maximum file descriptor member
-		
+
 	//int chat_fd, member_fd;							// listening and new client's fd
 	int member_fd;
 	int numbytes;
 	char msg[256];									// buffer for client data
-	
+
 	ChatRoom* chat = (ChatRoom*) room;
-	
+
 	char port[10];									// buffer for port number
 	sprintf(port, "%d", chat->port_number);
 	printf("PORT TO CONENCT TO: %s", port);
@@ -165,61 +165,63 @@ void* handle_chat_room(void* room){
 		perror("send slave");
 
 	close(client_fd);								// close the client_fd
-	
+
 	FD_ZERO(&(chat->clients_fd));						// clears the fd_sets
 	FD_ZERO(&(chat->master_fd));
-	
+
 	// open socket on new port number
 	memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;			// use my IP
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;			// use my IP
 
-    if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {			// converts host name or IP address into an struct servinfo
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        exit(1);                           //////////////////////FIXXXXXXXX
-    }
-
-    // loop through all the results and bind to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((chat->chat_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-            perror("slave server: socket");
-            continue;
-        }
-
-        if (setsockopt(chat->chat_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {// allows reusabilitity of local addresses
-            perror("slave setsockopt");
-            exit(1);                           //////////////////////FIXXXXXXXX
-        }
-
-        if (bind(chat->chat_fd, p->ai_addr, p->ai_addrlen) == -1) {			// binds socket to a local socket address
-            close(chat->chat_fd);
-            perror("slave server: bind");
-            continue;
-		}
-        break;
+	if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {			// converts host name or IP address into an struct servinfo
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		exit(1);                           //////////////////////FIXXXXXXXX
 	}
 
-    if (p == NULL)  {
-        fprintf(stderr, "slave server: failed to bind\n");
-        exit(1);                           //////////////////////FIXXXXXXXX
-    }
+	// loop through all the results and bind to the first we can
+	for(p = servinfo; p != NULL; p = p->ai_next) {
+		if ((chat->chat_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+			perror("slave server: socket");
+			continue;
+		}
 
-    freeaddrinfo(servinfo);						// done with this structure
-	
+		if (setsockopt(chat->chat_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {// allows reusabilitity of local addresses
+			perror("slave setsockopt");
+			exit(1);                           //////////////////////FIXXXXXXXX
+		}
+
+		if (bind(chat->chat_fd, p->ai_addr, p->ai_addrlen) == -1) {			// binds socket to a local socket address
+			close(chat->chat_fd);
+			perror("slave server: bind");
+			continue;
+		}
+		break;
+	}
+
+	if (p == NULL)  {
+		fprintf(stderr, "slave server: failed to bind\n");
+		exit(1);                           //////////////////////FIXXXXXXXX
+	}
+
+	freeaddrinfo(servinfo);						// done with this structure
+
 	if (listen(chat->chat_fd, BACKLOG) == -1) {		// new socket can be accepted, chat_fd listens for connections
-        perror("slave listen");
+		perror("slave listen");
 		close(chat->chat_fd);
-        exit(1);                           //////////////////////FIXXXXXXXX
-    }
+		exit(1);                           //////////////////////FIXXXXXXXX
+	}
 
 	// adds chat_fd to master_fd
 	FD_SET(chat->chat_fd,&(chat->master_fd));
 	chat->fdmax = chat->chat_fd;					// keeps track of the biggest fd
 
+	printf("fdmax:%d\n", chat->fdmax);
+
 	//keep track of the biggest fd
 	printf(">>>>>>>>>LISTENING ANG MONITORING  \n");
-    while(1) {							// main accept() loop
+	while(1) {							// main accept() loop
 		chat->clients_fd = chat->master_fd;
 
 		if(select(chat->fdmax+1, &(chat->clients_fd), NULL, NULL, NULL) == -1){
@@ -229,50 +231,59 @@ void* handle_chat_room(void* room){
 
 		// go through the fd for data to read
 		for(int i = 0; i <= chat->fdmax; i++){
-			if(FD_ISSET(i, &(chat->clients_fd))) {		// can read from this fd
-				sin_size = sizeof client_addr;
+			if(FD_ISSET(i, &(chat->clients_fd))) {		// i is part of the set_fd
+				if(i == chat->chat_fd){					// new connection
+					sin_size = sizeof client_addr;
+					member_fd = accept(chat->chat_fd, (struct sockaddr *)&client_addr, &sin_size);   // gets new socket with a new incoming connection
+					printf("NEW CLIENT FD: %d\n", member_fd);
 
-				member_fd = accept(chat->chat_fd, (struct sockaddr *)&client_addr, &sin_size);   // gets new socket with a new incoming connection
-				if (member_fd == -1) {
-					perror("slave accept");
-				}
-				else{
-					FD_SET(member_fd,  &(chat->master_fd));    // adds to master set
-					if(member_fd > chat->fdmax){						// new max
-						chat->fdmax = member_fd;
-					}
-					chat->num_members += 1;					// one new client connected
-					printf("Chat room %s: new connection from %s on socket %d\n", chat->name, 
-						                                                          inet_ntop(client_addr.ss_family, 
-																				            get_in_addr((struct sockaddr*)&client_addr),
-																							s, 
-																							INET6_ADDRSTRLEN),
-																							member_fd);
-				}
-			}
-			else{
-				// data from client
-				if((numbytes = recv(i, msg, sizeof msg, 0)) <= 0) {
-					//error or connection closed by user
-					if(numbytes == 0){		 // connection closed
-						chat->num_members -= 1;
-						printf("Chat room %s: socket %d disconnected\n", chat->name, i);
+					if (member_fd == -1) {
+						perror("slave accept");
 					}
 					else{
-						perror("slave recv");
+						FD_SET(member_fd,  &(chat->master_fd));    // adds to master set
+
+						if(member_fd > chat->fdmax){						// new max
+							chat->fdmax = member_fd;
+						}
+						chat->num_members += 1;					// one new client connected
+						printf("Chat room %s: new connection from %s on socket %d\n", chat->name, 
+							inet_ntop(client_addr.ss_family, 
+							get_in_addr((struct sockaddr*)&client_addr),
+							s, 
+							INET6_ADDRSTRLEN),
+							member_fd);
+						printf("NEW CLIENT FD: %d\n", member_fd);
+						if(send(member_fd, "Connected to chat room", strlen("Connected to chat room"),0) == -1){
+							perror("slave send to new client");
+						}
 					}
-					close(i);					// closes the socket
-					FD_CLR(i, &(chat->master_fd)); // removes from master_fd
 				}
-				else{
-					// data from client
-					for(int j = 0; j <= chat->fdmax; j++){
 
-						if(FD_ISSET(j, &(chat->master_fd))){		// send to everyone in the chat room except the  chat_fd and the sender
-							if(j != (chat->chat_fd) && j != i){    
+				else{     // data from client
+					if((numbytes = recv(i, msg, sizeof msg, 0)) <= 0) {
+						printf("FD read: %d\n", i);
+						printf("numbytes: %d\n", numbytes);
+						//error or connection closed by user
+						if(numbytes == 0){		 // connection closed
+							chat->num_members -= 1;
+							printf("Chat room %s: socket %d disconnected\n", chat->name, i);
+						}
+						else{
+							perror("slave recv message");
+						}
+						close(i);					// closes the socket
+						FD_CLR(i, &(chat->master_fd)); // removes from master_fd
+					}
+					else{	// data from client
+						for(int j = 0; j <= chat->fdmax; j++){
 
-								if(send(j, msg, numbytes,0) == -1){
-									perror("slave send");
+							if(FD_ISSET(j, &(chat->master_fd))){		// send to everyone in the chat room except the  chat_fd and the sender
+								if(j != (chat->chat_fd) && j != i){    
+									printf("MESSAGE TO OTHERS: %s", msg);
+									if(send(j, msg, numbytes,0) == -1){
+										perror("slave send");
+									}
 								}
 							}
 						}
@@ -282,6 +293,7 @@ void* handle_chat_room(void* room){
 		}
 	}
 }
+
 	
 
 /*create_room: creates a chatroom if it does not exist already*/
@@ -330,7 +342,7 @@ int create_room(){
 
 /*join_room: adds client to a chat room if it exists*/
 int join_room(){
-	printf("->>>>>>>>>>>In JOIN: ");
+	printf("->>>>>>>>>>>In JOIN: \n");
 	print_list();
 	for(int i = 0; i < chat_rooms.size(); i++){				// checks if there is another chatroom with the same name
 		ChatRoom* room = chat_rooms[i];
@@ -341,7 +353,7 @@ int join_room(){
 			
 			//char members[10];								// buffer for number of members
 			//sprintf(members, "%d", room->num_members);
-			printf("PORT AND MEMBERS TOGETHER %s", port_members);
+			//printf("PORT AND MEMBERS TOGETHER %s", port_members);
 			//printf("members %s", strlen(members));
 
 			if (send(client_fd, port_members , strlen(port_members), 0) == -1)      // sends the port number to the client
@@ -360,6 +372,7 @@ int join_room(){
 
 /*delete_room: deletes a chat room if it exists*/
 int delete_room(){
+	printf("->>>>>>>>>>>In DELETE: \n");
 	vector<ChatRoom*>::iterator i;
 	
 	for(i = chat_rooms.begin(); i < chat_rooms.end(); i++){				// checks if there is another chatroom with the same name
@@ -379,11 +392,14 @@ int delete_room(){
 				}
 			}
 			close(room->chat_fd);							// closes the chat_fd
-			pthread_kill(room->thread_id, SIGTERM);			// terminates the thread sending a signal to it
+			
 			free(room);										// frees allocated memory for chat room
 			chat_rooms.erase(i);							// deletes its pointer
+			printf("List after deletion: \n");
+			print_list();
+			//pthread_kill(room->thread_id, SIGTERM);			// terminates the thread sending a signal to it
+			pthread_cancel(room->thread_id);				//terminates the thread
 			return 1;
-			break;
 		}
 	}
 	//close(client_fd);	
