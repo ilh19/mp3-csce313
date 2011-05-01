@@ -153,8 +153,7 @@ void* handle_chat_room(void* room){
 	//int chat_fd, member_fd;							// listening and new client's fd
 	int member_fd;
 	int numbytes;
-	char msg[256];									// buffer for client data
-
+	
 	ChatRoom* chat = (ChatRoom*) room;
 
 	char port[10];									// buffer for port number
@@ -254,13 +253,15 @@ void* handle_chat_room(void* room){
 							INET6_ADDRSTRLEN),
 							member_fd);
 						printf("NEW CLIENT FD: %d\n", member_fd);
-						if(send(member_fd, "Connected to chat room", strlen("Connected to chat room"),0) == -1){
+						if(send(member_fd, "Connected to chat room\n", strlen("Connected to chat room\n"),0) == -1){
 							perror("slave send to new client");
 						}
+						printf("AAGGHH!!! CONNECTED TO CHATROOM!!!!\n");
 					}
 				}
 
 				else{     // data from client
+					char msg[256];									// buffer for client data
 					if((numbytes = recv(i, msg, sizeof msg, 0)) <= 0) {
 						printf("FD read: %d\n", i);
 						printf("numbytes: %d\n", numbytes);
@@ -277,10 +278,10 @@ void* handle_chat_room(void* room){
 					}
 					else{	// data from client
 						for(int j = 0; j <= chat->fdmax; j++){
-
+							msg[numbytes] = '\0';
 							if(FD_ISSET(j, &(chat->master_fd))){		// send to everyone in the chat room except the  chat_fd and the sender
 								if(j != (chat->chat_fd) && j != i){    
-									printf("MESSAGE TO OTHERS: %s", msg);
+									printf("MESSAGE TO OTHERS: %s\n", msg);
 									if(send(j, msg, numbytes,0) == -1){
 										perror("slave send");
 									}
@@ -383,7 +384,7 @@ int delete_room(){
 				fd_set* temp_set = &(room->master_fd);
 				if(FD_ISSET(j, temp_set)){		// send to everyone in the chat room except chat_fd
 					if(j != room->chat_fd){
-						char out_msg[53] = "Chat room is being deleted, shutting down connection";
+						char out_msg[54] = "Chat room is being deleted, shutting down connection\n";
 						if(send(j, out_msg, strlen(out_msg),0) == -1){
 							perror("send");
 						}
@@ -397,6 +398,7 @@ int delete_room(){
 			chat_rooms.erase(i);							// deletes its pointer
 			printf("List after deletion: \n");
 			print_list();
+			printf("------------------------------->>DELETING THREAD: PTHREAD ID: %d", room->thread_id);
 			//pthread_kill(room->thread_id, SIGTERM);			// terminates the thread sending a signal to it
 			pthread_cancel(room->thread_id);				//terminates the thread
 			return 1;
@@ -484,11 +486,11 @@ int main(void) {
 		}
 		request[numbytes] = '\0';				// add termination char 
 		
-		printf("Request: %s\n", request);
+		printf(">>>>>>>>>>>>>>>>>Request: %s\n", request);
 		
 		int type_request = check_request(request);		// gets the type of request: CREATE, JOIN, DELETE
 
-		printf("type_request: %d\n", type_request);
+	//	printf("type_request: %d\n", type_request);
 
 		switch(type_request){
 		case 1:										// CREATE REQUEST
@@ -498,7 +500,7 @@ int main(void) {
 				//	perror("send");
 			//}
 			//else{									// room was not created because the name exist already
-				char msg_out[27] = "Could not create chat room";
+				char msg_out[28] = "Could not create chat room\n";
 				if (send(client_fd, msg_out, strlen(msg_out), 0) == -1)
 					perror("send");                 
 			}
@@ -512,7 +514,7 @@ int main(void) {
 				//	perror("send");
 			//}
 			//else{
-				char msg_out[25] = "Chat room does not exist";
+				char msg_out[26] = "Chat room does not exist\n";
 				if (send(client_fd, msg_out , strlen(msg_out), 0) == -1)
 					perror("send");
 			}
@@ -526,7 +528,7 @@ int main(void) {
 				//	perror("send");
 			//}
 			//else{
-				char msg_out[27] = "Could not delete chat room";
+				char msg_out[28] = "Could not delete chat room\n";
 				if (send(client_fd, msg_out, strlen(msg_out), 0) == -1)
 					perror("send");
 			}
@@ -534,7 +536,7 @@ int main(void) {
 			break;
 
 		case 4: 									// INVALID REQUEST
-			char msg_out[36] = "Invalid Request. Connection closed.";
+			char msg_out[37] = "Invalid Request. Connection closed.\n";
 			if (send(client_fd, msg_out, strlen(msg_out), 0) == -1){
 				perror("send");
 				close(client_fd);
